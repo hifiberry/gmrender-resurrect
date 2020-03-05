@@ -32,6 +32,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <math.h>
 
 #include <glib.h>
 
@@ -98,6 +99,8 @@ int init_alsa(const char *mixer_name) {
                 return -1;
         }
 
+	Log_info("alsa", "Using alsa mixer control %s", mixer_name);
+
 	snd_mixer_selem_get_playback_volume_range(mixer_elem, &min, &mixer_max);
 
 	return 0;
@@ -111,17 +114,32 @@ int set_alsa_volume(float value) {
 	if (mixer_max <= 0)
 		return 0;
 
-	long volume = value;
+	/* Convert Volume to a 0-100% setting based on 60dB volume range */
+	float db = 20*log10(value);
+	long volume = (db+60)*mixer_max/60;
 
 	if (!(snd_mixer_selem_set_playback_volume_all(
-                mixer_elem, volume * mixer_max / 100)))
+		mixer_elem, volume)))
 		return 0;
 	else
 		return 1;
 }
 
 float get_alsa_volume(void) {
-	return -1;
+	if (mixer_max <= 0)
+                return 0;
+	
+	long value;
+	snd_mixer_selem_get_playback_volume(mixer_elem, SND_MIXER_SCHN_MONO, &value);
+
+	/* Convert 0-max back to multiplier with a 60db range) */
+	float db = value*60/mixer_max-60;
+
+	Log_error("alsa", "value %ld, db %f", value, db);
+	if (db <= -60) {
+		return 0;
+	}
+	return pow(10,db/20);
 }
 
 /************************************/
