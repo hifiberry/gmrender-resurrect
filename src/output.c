@@ -134,12 +134,13 @@ float get_alsa_volume(void) {
 
 	/* Convert 0-max back to multiplier with a 60db range) */
 	float db = value*60/mixer_max-60;
-
-	Log_error("alsa", "value %ld, db %f", value, db);
-	if (db <= -60) {
-		return 0;
+	float multiplier = 0;
+	if (db > -60) {
+		multiplier = pow(10,db/20);
 	}
-	return pow(10,db/20);
+
+	Log_error("alsa", "value %ld, db %f, multiplier %f", value, db, multiplier);
+	return multiplier;
 }
 
 /************************************/
@@ -253,6 +254,9 @@ void output_set_next_uri(const char *uri) {
 }
 
 int output_play(output_transition_cb_t transition_callback) {
+	Log_info("hifiberry","Stopping other processes using ALSA");
+        system("/opt/hifiberry/bin/pause-all upnp");	
+
 	if (output_module && output_module->play) {
 		return output_module->play(transition_callback);
 	}
@@ -291,7 +295,8 @@ int output_get_volume(float *value) {
 	/* Try ALSA first */
 	float vol = get_alsa_volume();
 	if (vol >= 0) {
-		return vol;
+		*value = vol;
+		return 0;
 	}
 	/* Go on if ALSA volume isn't supported */
 	if (output_module && output_module->get_volume) {
