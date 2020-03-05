@@ -52,6 +52,80 @@ static struct output_module *modules[] = {
 #endif
 };
 
+/** Additions: ALSA volume control **/
+
+#include <alsa/asoundlib.h>
+
+snd_mixer_elem_t* 	mixer_elem;
+long			mixer_max;
+snd_mixer_t 		*mixer_handle;
+snd_mixer_selem_id_t 	*mixer_sid;
+
+int init_alsa(const char *mixer_name) {
+	mixer_max = 0;
+    	long min;
+    	const char *card = "default";
+
+	if (! mixer_name) {
+		Log_info("alsa", "No mixer control defined, won't enable ALSA mixer control");
+		return -1;
+	}
+
+    	snd_mixer_open(&mixer_handle, 0);
+
+	if (! mixer_handle) {
+		Log_error("alsa", "Can't open mixer");
+                return -1;
+	}
+
+    	snd_mixer_attach(mixer_handle, card);
+    	snd_mixer_selem_register(mixer_handle, NULL, NULL);
+    	snd_mixer_load(mixer_handle);
+
+    	snd_mixer_selem_id_alloca(&mixer_sid);
+
+	if (! mixer_sid) {
+                Log_error("alsa", "Can't allocate mixer_sid");
+                return -1;
+        }
+
+    	snd_mixer_selem_id_set_index(mixer_sid, 0);
+    	snd_mixer_selem_id_set_name(mixer_sid, mixer_name);
+    	mixer_elem = snd_mixer_find_selem(mixer_handle, mixer_sid);
+
+	if (! mixer_elem) {
+                Log_error("alsa", "Mixer control %s does not exist", mixer_name);
+                return -1;
+        }
+
+	snd_mixer_selem_get_playback_volume_range(mixer_elem, &min, &mixer_max);
+
+	return 0;
+}
+
+void close_alsa(void) {
+	snd_mixer_close(mixer_handle);
+}
+
+int set_alsa_volume(float value) {
+	if (mixer_max <= 0)
+		return 0;
+
+	long volume = value;
+
+	if (!(snd_mixer_selem_set_playback_volume_all(
+                mixer_elem, volume * mixer_max / 100)))
+		return 0;
+	else
+		return 1;
+}
+
+float get_alsa_volume(void) {
+	return -1;
+}
+
+/************************************/
+
 static struct output_module *output_module = NULL;
 
 void output_dump_modules(void)
@@ -72,9 +146,11 @@ void output_dump_modules(void)
 	}
 }
 
-int output_init(const char *shortname)
+int output_init(const char *shortname, const char *alsa_mixer)
 {
 	int count;
+
+	init_alsa(alsa_mixer);
 
 	count = sizeof(modules) / sizeof(struct output_module *);
 	if (count == 0) {
@@ -194,12 +270,24 @@ int output_get_position(gint64 *track_dur, gint64 *track_pos) {
 }
 
 int output_get_volume(float *value) {
+	/* Try ALSA first */
+	float vol = get_alsa_volume();
+	if (vol >= 0) {
+		return vol;
+	}
+	/* Go on if ALSA volume isn't supported */
 	if (output_module && output_module->get_volume) {
 		return output_module->get_volume(value);
 	}
 	return -1;
 }
 int output_set_volume(float value) {
+	/* Try ALSA first */
+	float vol = set_alsa_volume(value);
+        if (vol >= 0) {
+                return vol;
+        }
+	/* Go on if ALSA volume isn't supported */
 	if (output_module && output_module->set_volume) {
 		return output_module->set_volume(value);
 	}

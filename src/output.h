@@ -39,7 +39,12 @@ typedef void (*output_transition_cb_t)(enum PlayFeedback);
 // callback with changes we send back to the controlling layer.
 typedef void (*output_update_meta_cb_t)(const struct SongMetaData *);
 
-int output_init(const char *shortname);
+int init_alsa(const char *mixer_name);
+void close_alsa(void);
+int set_alsa_volume(float value);
+float get_alsa_volume(void);
+
+int output_init(const char *shortname, const char *alsa_mixer);
 int output_add_options(GOptionContext *ctx);
 void output_dump_modules(void);
 

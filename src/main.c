@@ -87,6 +87,7 @@ static const gchar *output = NULL;
 static const gchar *pid_file = NULL;
 static const gchar *log_file = NULL;
 static const gchar *mime_filter = NULL;
+static const gchar *alsa_mixer = NULL;
 
 /* Generic GMediaRender options */
 static GOptionEntry option_entries[] = {
@@ -125,6 +126,8 @@ static GOptionEntry option_entries[] = {
 	  "Dump Rendering Control service description XML and exit.", NULL },
 	{ "dump-transport-scpd", 0, 0, G_OPTION_ARG_NONE, &show_transport_scpd,
 	  "Dump A/V Transport service description XML and exit.", NULL },
+        { "mixer", 0, 0, G_OPTION_ARG_STRING, &alsa_mixer,
+          "ALSA mixer control to use", NULL },
 	{ NULL }
 };
 
@@ -283,7 +286,7 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
-	rc = output_init(output);
+	rc = output_init(output, alsa_mixer);
 	if (rc != 0) {
 		Log_error("main",
 			  "ERROR: Failed to initialize Output subsystem");
